@@ -152,7 +152,7 @@ uint64_t IRAM_ATTR ESPOneWire::search() {
   }
 
   {
-    InterruptLock lock;
+    InterruptLock lock; //TBD_PADE This shall be done on lower level
     if (!this->reset()) {
       // Reset failed or no devices present
       this->reset_search();
@@ -167,7 +167,7 @@ uint64_t IRAM_ATTR ESPOneWire::search() {
   uint8_t rom_byte_mask = 1;
 
   {
-    InterruptLock lock;
+    InterruptLock lock; //TBD_PADE This shall be done on lower level
     // Initiate search
     this->write8(ONE_WIRE_ROM_SEARCH);
     do {

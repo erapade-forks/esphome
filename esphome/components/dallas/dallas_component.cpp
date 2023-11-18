@@ -12,14 +12,14 @@ static const uint8_t DALLAS_MODEL_DS18B20 = 0x28;
 static const uint8_t DALLAS_MODEL_DS1825 = 0x3B;
 static const uint8_t DALLAS_MODEL_DS28EA00 = 0x42;
 
-//This command initiates a single temperature conversion
+// This command initiates a single temperature conversion
 static const uint8_t DALLAS_COMMAND_START_CONVERSION = 0x44;
-//This command allows the master to read the contents of the scratchpad
+// This command allows the master to read the contents of the scratchpad
 static const uint8_t DALLAS_COMMAND_READ_SCRATCH_PAD = 0xBE;
-//This command allows the master to write 3 bytes of data to the DS18B20’s scratchpad.
+// This command allows the master to write 3 bytes of data to the DS18B20’s scratchpad.
 static const uint8_t DALLAS_COMMAND_WRITE_SCRATCH_PAD = 0x4E;
-//This command copies the contents of the scratchpad TH, TL and configuration registers (bytes 2, 3 and 4) to EEPROM
-static const uint8_t DALLAS_COMMAND_COPY_SCRATCH_PAD = 0x48; 
+// This command copies the contents of the scratchpad TH, TL and configuration registers (bytes 2, 3 and 4) to EEPROM
+static const uint8_t DALLAS_COMMAND_COPY_SCRATCH_PAD = 0x48;
 
 uint16_t DallasTemperatureSensor::millis_to_wait_for_conversion() const {
   switch (this->resolution_) {
@@ -77,6 +77,7 @@ void DallasComponent::setup() {
     }
   }
 }
+
 void DallasComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "DallasComponent:");
   LOG_PIN("  Pin: ", this->pin_);
@@ -109,12 +110,13 @@ void DallasComponent::register_sensor(DallasTemperatureSensor *sensor) { this->s
 void DallasComponent::update() {
   this->status_clear_warning();
 
-  bool result;
+  bool resetResult;
   {
-    InterruptLock lock;
-    result = this->one_wire_->reset();
+    InterruptLock lock; //TBD_PADE This shall instead be handled at lower level
+    resetResult = this->one_wire_->reset();
   }
-  if (!result) {
+
+  if (!resetResult) {
     ESP_LOGE(TAG, "Requesting conversion failed");
     this->status_set_warning();
     for (auto *sensor : this->sensors_) {
@@ -124,22 +126,22 @@ void DallasComponent::update() {
   }
 
   {
-    InterruptLock lock;
+    InterruptLock lock; //TBD_PADE This shall be done on lower level
     this->one_wire_->skip();
     this->one_wire_->write8(DALLAS_COMMAND_START_CONVERSION);
   }
 
   for (auto *sensor : this->sensors_) {
     this->set_timeout(sensor->get_address_name(), sensor->millis_to_wait_for_conversion(), [this, sensor] {
-      bool res = sensor->read_scratch_pad();
-
-      if (!res) {
+      if (!sensor->read_scratch_pad()) {
         ESP_LOGW(TAG, "'%s' - Resetting bus for read failed!", sensor->get_name().c_str());
         sensor->publish_state(NAN);
         this->status_set_warning();
         return;
       }
+
       if (!sensor->check_scratch_pad()) {
+        ESP_LOGW(TAG, "'%s' - Check scratch pad failed!", sensor->get_name().c_str());
         sensor->publish_state(NAN);
         this->status_set_warning();
         return;
@@ -165,11 +167,12 @@ const std::string &DallasTemperatureSensor::get_address_name() {
 
   return this->address_name_;
 }
+
 bool IRAM_ATTR DallasTemperatureSensor::read_scratch_pad() {
   auto *wire = this->parent_->one_wire_;
 
   {
-    InterruptLock lock;
+    InterruptLock lock; //TBD_PADE Shall be done on lower level
 
     if (!wire->reset()) {
       return false;
@@ -177,7 +180,7 @@ bool IRAM_ATTR DallasTemperatureSensor::read_scratch_pad() {
   }
 
   {
-    InterruptLock lock;
+    InterruptLock lock; //TBD_PADE Shall be done on lower level
 
     wire->select(this->address_);
     wire->write8(DALLAS_COMMAND_READ_SCRATCH_PAD);
@@ -189,18 +192,22 @@ bool IRAM_ATTR DallasTemperatureSensor::read_scratch_pad() {
 
   return true;
 }
-bool DallasTemperatureSensor::setup_sensor() {
-  bool r = this->read_scratch_pad();
 
-  if (!r) {
+bool DallasTemperatureSensor::setup_sensor() {
+  if (!this->read_scratch_pad()) {
     ESP_LOGE(TAG, "Reading scratchpad failed: reset");
     return false;
   }
-  if (!this->check_scratch_pad())
-    return false;
 
-  if (this->scratch_pad_[4] == this->resolution_)
+  if (!this->check_scratch_pad()) {
+    ESP_LOGE(TAG, "Checking scratchpad failed: reset");
     return false;
+  }
+
+  if (this->scratch_pad_[4] == this->resolution_) {
+    ESP_LOGE(TAG, "scratch_pad[4] == resolution: reset");
+    return false;
+  }
 
   if (this->get_address8()[0] == DALLAS_MODEL_DS18S20) {
     // DS18S20 doesn't support resolution.
@@ -226,7 +233,7 @@ bool DallasTemperatureSensor::setup_sensor() {
 
   auto *wire = this->parent_->one_wire_;
   {
-    InterruptLock lock;
+    InterruptLock lock; //TBD_PADE Interrupt lock only needed on lower level
     if (wire->reset()) {
       wire->select(this->address_);
       wire->write8(DALLAS_COMMAND_WRITE_SCRATCH_PAD);
@@ -245,6 +252,7 @@ bool DallasTemperatureSensor::setup_sensor() {
   wire->reset();
   return true;
 }
+
 bool DallasTemperatureSensor::check_scratch_pad() {
   bool chksum_validity = (crc8(this->scratch_pad_, 8) == this->scratch_pad_[8]);
   bool config_validity = false;
@@ -257,12 +265,11 @@ bool DallasTemperatureSensor::check_scratch_pad() {
       config_validity = ((this->scratch_pad_[4] & 0x10) == 0x10);
   }
 
-#ifdef ESPHOME_LOG_LEVEL_VERY_VERBOSE
   ESP_LOGVV(TAG, "Scratch pad: %02X.%02X.%02X.%02X.%02X.%02X.%02X.%02X.%02X (%02X)", this->scratch_pad_[0],
             this->scratch_pad_[1], this->scratch_pad_[2], this->scratch_pad_[3], this->scratch_pad_[4],
             this->scratch_pad_[5], this->scratch_pad_[6], this->scratch_pad_[7], this->scratch_pad_[8],
             crc8(this->scratch_pad_, 8));
-#endif
+
   if (!chksum_validity) {
     ESP_LOGW(TAG, "'%s' - Scratch pad checksum invalid!", this->get_name().c_str());
   } else if (!config_validity) {
@@ -270,6 +277,7 @@ bool DallasTemperatureSensor::check_scratch_pad() {
   }
   return chksum_validity && config_validity;
 }
+
 float DallasTemperatureSensor::get_temp_c() {
   int16_t temp = (int16_t(this->scratch_pad_[1]) << 11) | (int16_t(this->scratch_pad_[0]) << 3);
   if (this->get_address8()[0] == DALLAS_MODEL_DS18S20) {
@@ -279,6 +287,7 @@ float DallasTemperatureSensor::get_temp_c() {
 
   return temp / 128.0f;
 }
+
 std::string DallasTemperatureSensor::unique_id() { return "dallas-" + str_lower_case(format_hex(this->address_)); }
 
 }  // namespace dallas
