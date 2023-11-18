@@ -11,9 +11,15 @@ static const uint8_t DALLAS_MODEL_DS1822 = 0x22;
 static const uint8_t DALLAS_MODEL_DS18B20 = 0x28;
 static const uint8_t DALLAS_MODEL_DS1825 = 0x3B;
 static const uint8_t DALLAS_MODEL_DS28EA00 = 0x42;
+
+//This command initiates a single temperature conversion
 static const uint8_t DALLAS_COMMAND_START_CONVERSION = 0x44;
+//This command allows the master to read the contents of the scratchpad
 static const uint8_t DALLAS_COMMAND_READ_SCRATCH_PAD = 0xBE;
+//This command allows the master to write 3 bytes of data to the DS18B20’s scratchpad.
 static const uint8_t DALLAS_COMMAND_WRITE_SCRATCH_PAD = 0x4E;
+//This command copies the contents of the scratchpad TH, TL and configuration registers (bytes 2, 3 and 4) to EEPROM
+static const uint8_t DALLAS_COMMAND_COPY_SCRATCH_PAD = 0x48; 
 
 uint16_t DallasTemperatureSensor::millis_to_wait_for_conversion() const {
   switch (this->resolution_) {
@@ -231,7 +237,7 @@ bool DallasTemperatureSensor::setup_sensor() {
 
       // write value to EEPROM
       wire->select(this->address_);
-      wire->write8(0x48);
+      wire->write8(DALLAS_COMMAND_COPY_SCRATCH_PAD);
     }
   }
 

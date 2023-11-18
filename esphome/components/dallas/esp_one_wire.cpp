@@ -7,8 +7,11 @@ namespace dallas {
 
 static const char *const TAG = "dallas.one_wire";
 
+//The match ROM command followed by a 64-bit ROM code sequence allows the bus master to address a specific slave device on a multidrop or single-drop bus.
 const uint8_t ONE_WIRE_ROM_SELECT = 0x55;
+//When a system is initially powered up, the master must identify the ROM codes of all slave devices on the bus
 const uint8_t ONE_WIRE_ROM_SEARCH = 0xF0;
+//The master can use this command to address all devices on the bus simultaneously without sending out any ROM code information
 const uint8_t ONE_WIRE_ROM_SKIP = 0xCC;
 
 ESPOneWire::ESPOneWire(InternalGPIOPin *pin) { pin_ = pin->to_isr(); }
