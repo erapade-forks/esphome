@@ -8,7 +8,8 @@ namespace dallas {
 static const char *const TAG = "dallas.one_wire";
 
 const uint8_t ONE_WIRE_ROM_SELECT = 0x55;
-const int ONE_WIRE_ROM_SEARCH = 0xF0;
+const uint8_t ONE_WIRE_ROM_SEARCH = 0xF0;
+const uint8_t ONE_WIRE_ROM_SKIP = 0xCC;
 
 ESPOneWire::ESPOneWire(InternalGPIOPin *pin) { pin_ = pin->to_isr(); }
 
@@ -243,7 +244,7 @@ std::vector<uint64_t> ESPOneWire::search_vec() {
   return res;
 }
 void IRAM_ATTR ESPOneWire::skip() {
-  this->write8(0xCC);  // skip ROM
+  this->write8(ONE_WIRE_ROM_SKIP);  // skip ROM
 }
 
 uint8_t IRAM_ATTR *ESPOneWire::rom_number8_() { return reinterpret_cast<uint8_t *>(&this->rom_number_); }
