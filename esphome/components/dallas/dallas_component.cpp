@@ -30,12 +30,14 @@ uint16_t DallasTemperatureSensor::millis_to_wait_for_conversion() const {
     case 11:
       return 375;
     default:
-      return 750;
+      return 75;
   }
 }
 
 void DallasComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up DallasComponent...");
+  ESP_LOGW(TAG, "W Setting up DallasComponent..."); //TBD_PADE Just for testing since I can't see this in the log
+  ESP_LOGVV(TAG, "VV Setting up DallasComponent..."); //TBD_PADE Just for testing since I can't see this in the log
 
   pin_->setup();
 

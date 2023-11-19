@@ -7,7 +7,7 @@ namespace esphome {
 namespace dallas {
 
 extern const uint8_t ONE_WIRE_ROM_SELECT;
-extern const int ONE_WIRE_ROM_SEARCH;
+extern const uint8_t ONE_WIRE_ROM_SEARCH;
 
 class ESPOneWire {
  public:
@@ -19,13 +19,13 @@ class ESPOneWire {
    *
    * @return Whether the operation was successful.
    */
-  bool reset();
+  bool reset(); //TBD_PADE change to private
 
   /// Write a single bit to the bus, takes about 70µs.
-  void write_bit(bool bit);
+  void write_bit(bool bit); //TBD_PADE change to private
 
   /// Read a single bit from the bus, takes about 70µs
-  bool read_bit();
+  bool read_bit(); //TBD_PADE change to private
 
   /// Write a word to the bus. LSB first.
   void write8(uint8_t val);
