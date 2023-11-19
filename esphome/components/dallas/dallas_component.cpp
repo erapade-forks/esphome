@@ -30,11 +30,12 @@ uint16_t DallasTemperatureSensor::millis_to_wait_for_conversion() const {
     case 11:
       return 375;
     default:
-      return 75;
+      return 750;
   }
 }
 
 void DallasComponent::setup() {
+  ESP_LOGVV(TAG, "setup"); //TBD_PADE Remove this log
   ESP_LOGCONFIG(TAG, "Setting up DallasComponent...");
 
   pin_->setup();
@@ -79,6 +80,7 @@ void DallasComponent::setup() {
 }
 
 void DallasComponent::dump_config() {
+  ESP_LOGVV(TAG, "Dump config"); //TBD_PADE Remove this log
   ESP_LOGCONFIG(TAG, "DallasComponent:");
   LOG_PIN("  Pin: ", this->pin_);
   LOG_UPDATE_INTERVAL(this);
@@ -108,6 +110,7 @@ void DallasComponent::dump_config() {
 
 void DallasComponent::register_sensor(DallasTemperatureSensor *sensor) { this->sensors_.push_back(sensor); }
 void DallasComponent::update() {
+  ESP_LOGVV(TAG, "update"); //TBD_PADE Remove this log
   this->status_clear_warning();
 
   bool resetResult;
@@ -169,6 +172,7 @@ const std::string &DallasTemperatureSensor::get_address_name() {
 }
 
 bool IRAM_ATTR DallasTemperatureSensor::read_scratch_pad() {
+  ESP_LOGVV(TAG, "Read scratch pad"); //TBD_PADE Remove this log
   auto *wire = this->parent_->one_wire_;
 
   {
@@ -194,6 +198,7 @@ bool IRAM_ATTR DallasTemperatureSensor::read_scratch_pad() {
 }
 
 bool DallasTemperatureSensor::setup_sensor() {
+  ESP_LOGVV(TAG, "Setup sensor"); //TBD_PADE Remove this log
   if (!this->read_scratch_pad()) {
     ESP_LOGE(TAG, "Reading scratchpad failed: reset");
     return false;
@@ -254,6 +259,7 @@ bool DallasTemperatureSensor::setup_sensor() {
 }
 
 bool DallasTemperatureSensor::check_scratch_pad() {
+  ESP_LOGVV(TAG, "Check scratch pad"); //TBD_PADE Remove this log
   bool chksum_validity = (crc8(this->scratch_pad_, 8) == this->scratch_pad_[8]);
   bool config_validity = false;
 

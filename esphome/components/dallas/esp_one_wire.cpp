@@ -6,7 +6,7 @@ namespace esphome {
 namespace dallas {
 
 static const char *const TAG = "dallas.one_wire";
-
+//TBD_PADE cc-skipp 44-temp 55-selectAddress be-readScrachPad
 //The match ROM command followed by a 64-bit ROM code sequence allows the bus master to address a specific slave device on a multidrop or single-drop bus.
 const uint8_t ONE_WIRE_ROM_SELECT = 0x55;
 //When a system is initially powered up, the master must identify the ROM codes of all slave devices on the bus
@@ -17,9 +17,11 @@ const uint8_t ONE_WIRE_ROM_SKIP = 0xCC;
 ESPOneWire::ESPOneWire(InternalGPIOPin *pin) { pin_ = pin->to_isr(); }
 
 bool HOT IRAM_ATTR ESPOneWire::reset() {
+  ESP_LOGVV(TAG, "Reset"); //TBD_PADE Remove this log
   // See reset here:
   // https://www.maximintegrated.com/en/design/technical-documents/app-notes/1/126.html
   // Wait for communication to clear (delay G)
+
   pin_.pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
   uint8_t retries = 125;
   do {
@@ -112,25 +114,31 @@ bool HOT IRAM_ATTR ESPOneWire::read_bit() {
 }
 
 void IRAM_ATTR ESPOneWire::write8(uint8_t val) {
+  ESP_LOGVV(TAG, "write8: 0x%02x", val); //TBD_PADE Remove this log
   for (uint8_t i = 0; i < 8; i++) {
     this->write_bit(bool((1u << i) & val));
   }
 }
 
 void IRAM_ATTR ESPOneWire::write64(uint64_t val) {
-  for (uint8_t i = 0; i < 64; i++) {
-    this->write_bit(bool((1ULL << i) & val));
+  ESP_LOGVV(TAG, "write64"); //TBD_PADE Remove this log
+  uint8_t* bytes = reinterpret_cast<uint8_t*>(&val);
+  for (uint8_t i = 0; i < 8; i++) {
+    this->write8(bytes[i]);
   }
 }
+
 
 uint8_t IRAM_ATTR ESPOneWire::read8() {
   uint8_t ret = 0;
   for (uint8_t i = 0; i < 8; i++) {
     ret |= (uint8_t(this->read_bit()) << i);
   }
+  ESP_LOGVV(TAG, "read8: 0x%02x", ret); //TBD_PADE Remove this log
   return ret;
 }
 uint64_t IRAM_ATTR ESPOneWire::read64() {
+  ESP_LOGVV(TAG, "read64"); //TBD_PADE Remove this log
   uint64_t ret = 0;
   for (uint8_t i = 0; i < 8; i++) {
     ret |= (uint64_t(this->read_bit()) << i);
@@ -138,15 +146,19 @@ uint64_t IRAM_ATTR ESPOneWire::read64() {
   return ret;
 }
 void IRAM_ATTR ESPOneWire::select(uint64_t address) {
+  ESP_LOGVV(TAG, "select: 0x%02x", address); //TBD_PADE Remove this log
   this->write8(ONE_WIRE_ROM_SELECT);
   this->write64(address);
 }
+
 void IRAM_ATTR ESPOneWire::reset_search() {
+  ESP_LOGVV(TAG, "reset_search"); //TBD_PADE Remove this log
   this->last_discrepancy_ = 0;
   this->last_device_flag_ = false;
   this->rom_number_ = 0;
 }
 uint64_t IRAM_ATTR ESPOneWire::search() {
+  ESP_LOGVV(TAG, "search"); //TBD_PADE Remove this log
   if (this->last_device_flag_) {
     return 0u;
   }
@@ -237,6 +249,7 @@ uint64_t IRAM_ATTR ESPOneWire::search() {
   return this->rom_number_;
 }
 std::vector<uint64_t> ESPOneWire::search_vec() {
+  ESP_LOGVV(TAG, "search_vec"); //TBD_PADE Remove this log
   std::vector<uint64_t> res;
 
   this->reset_search();
@@ -246,7 +259,9 @@ std::vector<uint64_t> ESPOneWire::search_vec() {
 
   return res;
 }
+
 void IRAM_ATTR ESPOneWire::skip() {
+  ESP_LOGVV(TAG, "skip"); //TBD_PADE Remove this log
   this->write8(ONE_WIRE_ROM_SKIP);  // skip ROM
 }
 

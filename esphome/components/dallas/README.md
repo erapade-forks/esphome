@@ -24,6 +24,34 @@ The 1-wire bus has 4 basic operations:
 
 These operations should be private (or protected) within the 1-wire class for a better structure of the code
 
+### Transaction sequence
+* Step 1. Initialization
+  * Reset pulse by master
+  * Precense puls by slave(s)
+* Step 2. ROM Command (followed by any required data exchange)
+* Step 3. DS18B20 Function Command (followed by any required data exchange)
+
+#### ROM commands
+|Command|Code|Description|
+|-|-|-|
+|Search Rom|[F0h]|When a system is initially powered up, the master must identify the ROM codes of all slave devices on the bus, which allows the master to determine the number of slaves and their device types|
+|Read Rom|[33h]|This command can only be used when there is one slave on the bus|
+|Match Rom|[55H]|The match ROM command followed by a 64-bit ROM code sequence allows the bus master to address a specific slave device on a multidrop or single-drop bus
+Skip Rom|[CCh]|The master can use this command to address all devices on the bus simultaneously without sending out any ROM code information|
+|Alarm Search [ECh]|The operation of this command is identical to the operation of the Search ROM command except that only slaves with a set alarm flag will respond|
+
+#### DS18B20 Function Commands
+|Command|Code|Description|
+|-|-|-|
+|Convert T|[44h]|This command initiates a single temperature conversion. Following the conversion, the resulting thermal data is stored in the 2-byte temperature register in the scratchpad memory and the DS18B20 returns to its low-power idle state|
+|Write Scratchpad|[4Eh]|This command allows the master to write 3 bytes of data to the DS18B20’s scratchpad|
+|Read Scratchpad|[BEh]|This command allows the master to read the contents of the scratchpad|
+|Copy Scratchpad|[48h]|This command copies the contents of the scratchpad TH, TL and configuration registers (bytes 2, 3 and 4) to EEPROM|
+|Recall E2|[B8h]|This command recalls the alarm trigger values (TH and TL) and configuration data from EEPROM and places the data in bytes 2, 3, and 4, respectively, in the scratchpad memory|
+|Read Power Supply|[B4h]|The master device issues this command followed by a read time slot to determine if any DS18B20s on the bus are using parasite power|
+
+
+
 ### Timing
 saf
 
