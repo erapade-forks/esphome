@@ -7,21 +7,17 @@ namespace dallas {
 
 static const char *const TAG = "dallas.one_wire";
 
-ESPOneWire::ESPOneWire(InternalGPIOPin *pin) { pin_ = pin->to_isr(); pin_.digital_write(false);}
+ESPOneWire::ESPOneWire(InternalGPIOPin *pin) {
+  pin_ = pin->to_isr(); 
+  pin_.digital_write(false); 
+  pin_.pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
+}
 
 bool HOT IRAM_ATTR ESPOneWire::reset() {
   ESP_LOGVV(TAG, "Reset"); //TBD_PADE Remove this log
   // See reset here:
   // https://www.maximintegrated.com/en/design/technical-documents/app-notes/1/126.html
   // Wait for communication to clear (delay G)
-
-  pin_.pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
-  uint8_t retries = 125;
-  do {
-    if (--retries == 0)
-      return false;
-    delayMicroseconds(2);
-  } while (!pin_.digital_read());
 
   // Send 480µs LOW TX reset pulse (drive bus low, delay H)
   pin_.pin_mode(gpio::FLAG_OUTPUT);
