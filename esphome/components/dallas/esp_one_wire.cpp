@@ -7,7 +7,7 @@ namespace dallas {
 
 static const char *const TAG = "dallas.one_wire";
 
-ESPOneWire::ESPOneWire(InternalGPIOPin *pin) { pin_ = pin->to_isr(); }
+ESPOneWire::ESPOneWire(InternalGPIOPin *pin) { pin_ = pin->to_isr(); pin_.digital_write(false);}
 
 bool HOT IRAM_ATTR ESPOneWire::reset() {
   ESP_LOGVV(TAG, "Reset"); //TBD_PADE Remove this log
@@ -25,7 +25,6 @@ bool HOT IRAM_ATTR ESPOneWire::reset() {
 
   // Send 480µs LOW TX reset pulse (drive bus low, delay H)
   pin_.pin_mode(gpio::FLAG_OUTPUT);
-  pin_.digital_write(false);
   delayMicroseconds(480);
 
   // Release the bus, delay I
@@ -42,7 +41,6 @@ bool HOT IRAM_ATTR ESPOneWire::reset() {
 void HOT IRAM_ATTR ESPOneWire::write_bit(bool bit) {
   // drive bus low
   pin_.pin_mode(gpio::FLAG_OUTPUT);
-  pin_.digital_write(false);
 
   // from datasheet:
   // write 0 low time: t_low0: min=60µs, max=120µs
@@ -64,7 +62,6 @@ void HOT IRAM_ATTR ESPOneWire::write_bit(bool bit) {
 bool HOT IRAM_ATTR ESPOneWire::read_bit() {
   // drive bus low
   pin_.pin_mode(gpio::FLAG_OUTPUT);
-  pin_.digital_write(false);
 
   // note: for reading we'll need very accurate timing, as the
   // timing for the digital_read() is tight; according to the datasheet,
