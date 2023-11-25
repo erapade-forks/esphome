@@ -6,13 +6,6 @@ namespace esphome {
 namespace dallas {
 
 static const char *const TAG = "dallas.one_wire";
-//TBD_PADE cc-skipp 44-temp 55-selectAddress be-readScrachPad
-//The match ROM command followed by a 64-bit ROM code sequence allows the bus master to address a specific slave device on a multidrop or single-drop bus.
-const uint8_t ONE_WIRE_ROM_SELECT = 0x55;
-//When a system is initially powered up, the master must identify the ROM codes of all slave devices on the bus
-const uint8_t ONE_WIRE_ROM_SEARCH = 0xf0;
-//The master can use this command to address all devices on the bus simultaneously without sending out any ROM code information
-const uint8_t ONE_WIRE_ROM_SKIP = 0xCC;
 
 ESPOneWire::ESPOneWire(InternalGPIOPin *pin) { pin_ = pin->to_isr(); }
 
@@ -63,7 +56,7 @@ void HOT IRAM_ATTR ESPOneWire::write_bit(bool bit) {
   // delay A/C
   delayMicroseconds(delay0);
   // release bus
-  pin_.digital_write(true); //TBD_PADE This shall instead be tri-state
+  pin_.pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP); 
   // delay B/D
   delayMicroseconds(delay1);
 }
