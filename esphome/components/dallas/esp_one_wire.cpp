@@ -14,24 +14,70 @@ ESPOneWire::ESPOneWire(InternalGPIOPin *pin) {
 }
 
 bool HOT IRAM_ATTR ESPOneWire::reset() {
-  ESP_LOGVV(TAG, "Reset"); //TBD_PADE Remove this log
   // See reset here:
-  // https://www.maximintegrated.com/en/design/technical-documents/app-notes/1/126.html
-  // Wait for communication to clear (delay G)
+  // https://www.analog.com/media/en/technical-documentation/data-sheets/ds18b20.pdf
 
-  // Send 480µs LOW TX reset pulse (drive bus low, delay H)
+  bool sensor_present = false;
+
+  // Send 480µs LOW TX reset pulse
   pin_.pin_mode(gpio::FLAG_OUTPUT);
   delayMicroseconds(480);
-
-  // Release the bus, delay I
+  
+  // Release the bus
   pin_.pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
-  delayMicroseconds(70);
+  // Start timer to make sure the 480us client period is fulfilled
+  uint32_t duration1 = 0;
+  uint32_t start1 = micros();
+  
+  // Wait for bus to be high
+  bool bus_state = false;
+  for (int i=0; bus_state == false && duration1 <= 15; i++) { 
+    bus_state=pin_.digital_read(); 
+    duration1 = micros()-start1;
+  }
+  // If the bus wasn't detected as high after 15us something is wrong
+  if (duration1 > 15) {
+    ESP_LOGE(TAG, "In the reset phase, the bus wasn't release to tri-state within the allowed 15us");
+  }
+  else {
+    // Start time to make sure the client pulles the bus low within 240us
+    uint32_t duration2 = 0;
+    uint32_t start2 = micros();
 
-  // sample bus, 0=device(s) present, 1=no device present
-  bool r = !pin_.digital_read();
-  // delay J
-  delayMicroseconds(410);
-  return r;
+    // Wait for bus to be low - Client presence detection
+    for (int i=0; bus_state == true && duration2 <= 240; i++) { 
+      bus_state = pin_.digital_read(); 
+      duration2 = micros()-start2;
+    }
+
+    // If precense puls detected, wait for client to release to tri-state
+    if (duration2 > 240) {
+      ESP_LOGW(TAG, "In the reset phase, the sensor didn't pull the line low within the allowed 240us");
+    }
+    else {
+      // Define the sensor as present
+      sensor_present = true;
+
+      // Then wait for sensor to release bus into Tri-state mode
+      for (int i=0; bus_state == false && duration1 <= 480; i++) { 
+        bus_state = pin_.digital_read(); 
+        duration1 = micros()-start1;
+      }
+
+      // If sensor didn't release the bus to tri-state within allowed time, write a warning
+      if (duration1 > 480) {
+        ESP_LOGW(TAG, "In the reset phase, the sensor pulled the bus low in %ius but didn't release the bus into tri-state within 480us", duration1);
+      }
+    }
+
+    while(micros()-start1 <= 480){}
+
+  ESP_LOGVV(TAG, "Reset, duration1, %i, duration2, %i, sensor_present, %i", duration1, duration2, sensor_present); //TBD_PADE Remove this log
+
+  }
+
+
+  return sensor_present;
 }
 
 void HOT IRAM_ATTR ESPOneWire::write_bit(bool bit) {
