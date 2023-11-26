@@ -23,22 +23,29 @@ bool HOT IRAM_ATTR ESPOneWire::reset() {
   pin_.pin_mode(gpio::FLAG_OUTPUT);
   delayMicroseconds(480);
   
-  // Release the bus
-  pin_.pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
-  // Start timer to make sure the 480us client period is fulfilled
-  uint32_t duration1 = 0;
-  uint32_t start1 = micros();
-  
-  // Wait for bus to be high
-  bool bus_state = false;
-  for (int i=0; bus_state == false && duration1 <= 15; i++) { 
-    bus_state=pin_.digital_read(); 
-    duration1 = micros()-start1;
+  // This part of the code is a bit of a gambling but the intention is to make sure the bus is high
+  // before starting to detect if the client pulls the line low. Since it's time critical this is
+  // within a interrupt protected area
+  {
+    InterruptLock lock;
+    // Release the bus
+    pin_.pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
+    // Start timer to make sure the 480us client period is fulfilled
+    uint32_t duration1 = 0;
+    uint32_t start1 = micros();
+    
+    // Wait for bus to be high
+    bool bus_state = false;
+    for (int i=0; bus_state == false && duration1 <= 15; i++) { 
+      bus_state=pin_.digital_read(); 
+      duration1 = micros()-start1;
+    }
+    // If the bus wasn't detected as high after 15us something is wrong
+    if (duration1 > 15) {
+      ESP_LOGE(TAG, "In the reset phase, the bus wasn't release to tri-state within the allowed 15us");
+    }
   }
-  // If the bus wasn't detected as high after 15us something is wrong
-  if (duration1 > 15) {
-    ESP_LOGE(TAG, "In the reset phase, the bus wasn't release to tri-state within the allowed 15us");
-  }
+  // Ok, bus has reached high state
   else {
     // Start time to make sure the client pulles the bus low within 240us
     uint32_t duration2 = 0;
