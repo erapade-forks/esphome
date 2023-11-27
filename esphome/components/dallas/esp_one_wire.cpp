@@ -14,75 +14,85 @@ ESPOneWire::ESPOneWire(InternalGPIOPin *pin) {
 }
 
 bool HOT IRAM_ATTR ESPOneWire::reset() {
-  // See reset here:
-  // https://www.analog.com/media/en/technical-documentation/data-sheets/ds18b20.pdf
 
+  uint32_t start0;
+  uint32_t start1;
+  uint32_t start2;
+  uint32_t duration_for_pin_mode_tri_state = 0;
+  uint32_t duration_untill_high = 0;
+  uint32_t duration_untill_high2 = 0;
+  uint32_t duration_untill_device_pulls_low = 0;
+  uint32_t duration_untill_device_releases_bus = 0;
   bool sensor_present = false;
+  bool bus_state = false;
 
-  // Send 480µs LOW TX reset pulse
-  pin_.pin_mode(gpio::FLAG_OUTPUT);
-  delayMicroseconds(480);
-  
-  // This part of the code is a bit of a gambling but the intention is to make sure the bus is high
-  // before starting to detect if the client pulls the line low. Since it's time critical this is
-  // within a interrupt protected area
   {
-    InterruptLock lock;
+    // This part of the code is a bit of a gambling but the intention is to make sure the bus is high
+    // before starting to detect if the client pulls the line low. Since it's time critical this is
+    // within a interrupt protected area
+      InterruptLock lock;
+
+    // See reset here:
+    // https://www.analog.com/media/en/technical-documentation/data-sheets/ds18b20.pdf
+
+    // Send 480µs LOW TX reset pulse
+    pin_.pin_mode(gpio::FLAG_OUTPUT);
+    delayMicroseconds(480);
+
     // Release the bus
+    start0 = micros();
     pin_.pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
+    duration_for_pin_mode_tri_state = micros()-start0;
+
     // Start timer to make sure the 480us client period is fulfilled
-    uint32_t duration1 = 0;
-    uint32_t start1 = micros();
+    start1 = micros();
     
     // Wait for bus to be high
-    bool bus_state = false;
-    for (int i=0; bus_state == false && duration1 <= 15; i++) { 
-      bus_state=pin_.digital_read(); 
-      duration1 = micros()-start1;
-    }
+    do { 
+      duration_untill_high = micros()-start1;
+      bus_state = pin_.digital_read(); 
+    } while ( bus_state == false && duration_untill_high <= 15 );
+    duration_untill_high2 = micros()-start1;
+
+    // Start time to make sure the client pulls the bus low within 240us
+    start2 = micros();
+
     // If the bus wasn't detected as high after 15us something is wrong
-    if (duration1 > 15) {
+    if (duration_untill_high > 15) {
       ESP_LOGE(TAG, "In the reset phase, the bus wasn't release to tri-state within the allowed 15us");
     }
-  }
-  // Ok, bus has reached high state
-  else {
-    // Start time to make sure the client pulles the bus low within 240us
-    uint32_t duration2 = 0;
-    uint32_t start2 = micros();
-
-    // Wait for bus to be low - Client presence detection
-    for (int i=0; bus_state == true && duration2 <= 240; i++) { 
-      bus_state = pin_.digital_read(); 
-      duration2 = micros()-start2;
-    }
-
-    // If precense puls detected, wait for client to release to tri-state
-    if (duration2 > 240) {
-      ESP_LOGW(TAG, "In the reset phase, the sensor didn't pull the line low within the allowed 240us");
-    }
+    // Ok, bus has reached high state
     else {
-      // Define the sensor as present
-      sensor_present = true;
-
-      // Then wait for sensor to release bus into Tri-state mode
-      for (int i=0; bus_state == false && duration1 <= 480; i++) { 
+      // Wait for bus to be low - Client presence detection
+      do { 
+        duration_untill_device_pulls_low = micros()-start2;
         bus_state = pin_.digital_read(); 
-        duration1 = micros()-start1;
-      }
+      } while ( bus_state == true && duration_untill_device_pulls_low <= 240 );
 
-      // If sensor didn't release the bus to tri-state within allowed time, write a warning
-      if (duration1 > 480) {
-        ESP_LOGW(TAG, "In the reset phase, the sensor pulled the bus low in %ius but didn't release the bus into tri-state within 480us", duration1);
+      // If precense puls detected, wait for client to release to tri-state
+      if (duration_untill_device_pulls_low > 240) {
+        ESP_LOGW(TAG, "In the reset phase, the sensor didn't pull the line low within the allowed 240us");
+      }
+      else {
+        // Define the sensor as present
+        sensor_present = true;
+        
+        // Then wait for sensor to release bus into Tri-state mode
+        do { 
+          duration_untill_device_releases_bus = micros()-start1;
+          bus_state = pin_.digital_read(); 
+        } while ( bus_state == false && duration_untill_device_releases_bus <= 480 );
+
+        // If sensor didn't release the bus to tri-state within allowed time, write a warning
+        if (duration_untill_device_releases_bus > 480) {
+          ESP_LOGW(TAG, "In the reset phase, the sensor pulled the bus low in %lu us but didn't release the bus into tri-state within 480us", duration_untill_device_pulls_low);
+        }
       }
     }
-
-    while(micros()-start1 <= 480){}
-
-  ESP_LOGVV(TAG, "Reset, duration1, %i, duration2, %i, sensor_present, %i", duration1, duration2, sensor_present); //TBD_PADE Remove this log
-
   }
 
+  while(micros()-start1 <= 480){}
+          ESP_LOGW(TAG, "Test: start0, %lu, start1, %lu, start2, %lu, duration_for_pin_mode_tri_state, %lu, duration_untill_high, %lu, duration_untill_high2, %lu, duration_untill_device_pulls_low, %lu, duration_untill_device_releases_bus, %lu, micros, %lu", start0, start1, start2, duration_for_pin_mode_tri_state, duration_untill_high, duration_untill_high2, duration_untill_device_pulls_low, duration_untill_device_releases_bus, micros());
 
   return sensor_present;
 }
