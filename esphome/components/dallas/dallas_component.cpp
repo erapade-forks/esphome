@@ -109,18 +109,16 @@ void DallasComponent::dump_config() {
 }
 
 void DallasComponent::register_sensor(DallasTemperatureSensor *sensor) { this->sensors_.push_back(sensor); }
+
 void DallasComponent::update() {
   ESP_LOGVV(TAG, "update"); //TBD_PADE Remove this log
   this->status_clear_warning();
 
   bool resetResult;
-  {
-    InterruptLock lock; //TBD_PADE This shall instead be handled at lower level
-    resetResult = this->one_wire_->reset();
-  }
+  resetResult = this->one_wire_->reset();
 
   if (!resetResult) {
-    ESP_LOGE(TAG, "Requesting conversion failed");
+    ESP_LOGE(TAG, "Requesting conversion failed"); //TBD_PADE This is a strange log message that I dont udnerstand
     this->status_set_warning();
     for (auto *sensor : this->sensors_) {
       sensor->publish_state(NAN);
@@ -128,11 +126,8 @@ void DallasComponent::update() {
     return;
   }
 
-  {
-    InterruptLock lock; //TBD_PADE This shall be done on lower level
-    this->one_wire_->skip();
-    this->one_wire_->write8(DALLAS_COMMAND_START_CONVERSION);
-  }
+  this->one_wire_->skip();
+  this->one_wire_->write8(DALLAS_COMMAND_START_CONVERSION);
 
   for (auto *sensor : this->sensors_) {
     this->set_timeout(sensor->get_address_name(), sensor->millis_to_wait_for_conversion(), [this, sensor] {
@@ -175,23 +170,15 @@ bool IRAM_ATTR DallasTemperatureSensor::read_scratch_pad() {
   ESP_LOGVV(TAG, "Read scratch pad"); //TBD_PADE Remove this log
   auto *wire = this->parent_->one_wire_;
 
-  {
-    InterruptLock lock; //TBD_PADE Shall be done on lower level
-
-    if (!wire->reset()) {
-      return false;
-    }
+  if (!wire->reset()) {
+    return false;
   }
 
-  {
-    InterruptLock lock; //TBD_PADE Shall be done on lower level
+  wire->select(this->address_);
+  wire->write8(DALLAS_COMMAND_READ_SCRATCH_PAD);
 
-    wire->select(this->address_);
-    wire->write8(DALLAS_COMMAND_READ_SCRATCH_PAD);
-
-    for (unsigned char &i : this->scratch_pad_) {
-      i = wire->read8();
-    }
+  for (unsigned char &i : this->scratch_pad_) {
+    i = wire->read8();
   }
 
   return true;
@@ -237,20 +224,17 @@ bool DallasTemperatureSensor::setup_sensor() {
   }
 
   auto *wire = this->parent_->one_wire_;
-  {
-    InterruptLock lock; //TBD_PADE Interrupt lock only needed on lower level
-    if (wire->reset()) {
-      wire->select(this->address_);
-      wire->write8(DALLAS_COMMAND_WRITE_SCRATCH_PAD);
-      wire->write8(this->scratch_pad_[2]);  // high alarm temp
-      wire->write8(this->scratch_pad_[3]);  // low alarm temp
-      wire->write8(this->scratch_pad_[4]);  // resolution
-      wire->reset();
+  if (wire->reset()) {
+    wire->select(this->address_);
+    wire->write8(DALLAS_COMMAND_WRITE_SCRATCH_PAD);
+    wire->write8(this->scratch_pad_[2]);  // high alarm temp
+    wire->write8(this->scratch_pad_[3]);  // low alarm temp
+    wire->write8(this->scratch_pad_[4]);  // resolution
+    wire->reset();
 
-      // write value to EEPROM
-      wire->select(this->address_);
-      wire->write8(DALLAS_COMMAND_COPY_SCRATCH_PAD);
-    }
+    // write value to EEPROM
+    wire->select(this->address_);
+    wire->write8(DALLAS_COMMAND_COPY_SCRATCH_PAD);
   }
 
   delay(20);  // allow it to finish operation

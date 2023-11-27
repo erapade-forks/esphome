@@ -98,6 +98,7 @@ bool HOT IRAM_ATTR ESPOneWire::reset() {
 }
 
 void HOT IRAM_ATTR ESPOneWire::write_bit(bool bit) {
+  InterruptLock lock;
   // drive bus low
   pin_.pin_mode(gpio::FLAG_OUTPUT);
 
@@ -119,6 +120,7 @@ void HOT IRAM_ATTR ESPOneWire::write_bit(bool bit) {
 }
 
 bool HOT IRAM_ATTR ESPOneWire::read_bit() {
+  InterruptLock lock;
   // drive bus low
   pin_.pin_mode(gpio::FLAG_OUTPUT);
 
@@ -194,6 +196,7 @@ uint64_t IRAM_ATTR ESPOneWire::read64() {
   }
   return ret;
 }
+
 void IRAM_ATTR ESPOneWire::select(uint64_t address) {
   ESP_LOGVV(TAG, "select: 0x%02x", address); //TBD_PADE Remove this log
   this->write8(ONE_WIRE_ROM_SELECT);
@@ -212,13 +215,10 @@ uint64_t IRAM_ATTR ESPOneWire::search() {
     return 0u;
   }
 
-  {
-    InterruptLock lock; //TBD_PADE This shall be done on lower level
-    if (!this->reset()) {
-      // Reset failed or no devices present
-      this->reset_search();
-      return 0u;
-    }
+  if (!this->reset()) {
+    // Reset failed or no devices present
+    this->reset_search();
+    return 0u;
   }
 
   uint8_t id_bit_number = 1;
@@ -227,58 +227,55 @@ uint64_t IRAM_ATTR ESPOneWire::search() {
   bool search_result = false;
   uint8_t rom_byte_mask = 1;
 
-  {
-    InterruptLock lock; //TBD_PADE This shall be done on lower level
-    // Initiate search
-    this->write8(ONE_WIRE_ROM_SEARCH);
-    do {
-      // read bit
-      bool id_bit = this->read_bit();
-      // read its complement
-      bool cmp_id_bit = this->read_bit();
+  // Initiate search
+  this->write8(ONE_WIRE_ROM_SEARCH);
+  do {
+    // read bit
+    bool id_bit = this->read_bit();
+    // read its complement
+    bool cmp_id_bit = this->read_bit();
 
-      if (id_bit && cmp_id_bit) {
-        // No devices participating in search
-        break;
-      }
+    if (id_bit && cmp_id_bit) {
+      // No devices participating in search
+      break;
+    }
 
-      bool branch;
+    bool branch;
 
-      if (id_bit != cmp_id_bit) {
-        // only chose one branch, the other one doesn't have any devices.
-        branch = id_bit;
+    if (id_bit != cmp_id_bit) {
+      // only chose one branch, the other one doesn't have any devices.
+      branch = id_bit;
+    } else {
+      // there are devices with both 0s and 1s at this bit
+      if (id_bit_number < this->last_discrepancy_) {
+        branch = (this->rom_number8_()[rom_byte_number] & rom_byte_mask) > 0;
       } else {
-        // there are devices with both 0s and 1s at this bit
-        if (id_bit_number < this->last_discrepancy_) {
-          branch = (this->rom_number8_()[rom_byte_number] & rom_byte_mask) > 0;
-        } else {
-          branch = id_bit_number == this->last_discrepancy_;
-        }
-
-        if (!branch) {
-          last_zero = id_bit_number;
-        }
+        branch = id_bit_number == this->last_discrepancy_;
       }
 
-      if (branch) {
-        // set bit
-        this->rom_number8_()[rom_byte_number] |= rom_byte_mask;
-      } else {
-        // clear bit
-        this->rom_number8_()[rom_byte_number] &= ~rom_byte_mask;
+      if (!branch) {
+        last_zero = id_bit_number;
       }
+    }
 
-      // choose/announce branch
-      this->write_bit(branch);
-      id_bit_number++;
-      rom_byte_mask <<= 1;
-      if (rom_byte_mask == 0u) {
-        // go to next byte
-        rom_byte_number++;
-        rom_byte_mask = 1;
-      }
-    } while (rom_byte_number < 8);  // loop through all bytes
-  }
+    if (branch) {
+      // set bit
+      this->rom_number8_()[rom_byte_number] |= rom_byte_mask;
+    } else {
+      // clear bit
+      this->rom_number8_()[rom_byte_number] &= ~rom_byte_mask;
+    }
+
+    // choose/announce branch
+    this->write_bit(branch);
+    id_bit_number++;
+    rom_byte_mask <<= 1;
+    if (rom_byte_mask == 0u) {
+      // go to next byte
+      rom_byte_number++;
+      rom_byte_mask = 1;
+    }
+  } while (rom_byte_number < 8);  // loop through all bytes
 
   if (id_bit_number >= 65) {
     this->last_discrepancy_ = last_zero;
