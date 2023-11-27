@@ -42,7 +42,7 @@ void DallasComponent::setup() {
 
   // clear bus with 480µs high, otherwise initial reset in search_vec() fails
   pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
-  delayMicroseconds(480);
+  //delayMicroseconds(480);  //TBD_PADE Not needed so commenting this out
 
   one_wire_ = new ESPOneWire(pin_);  // NOLINT(cppcoreguidelines-owning-memory)
 
