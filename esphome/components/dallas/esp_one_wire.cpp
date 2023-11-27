@@ -117,49 +117,45 @@ void HOT IRAM_ATTR ESPOneWire::write_bit(bool bit) {
   pin_.pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP); 
   // delay B/D
   delayMicroseconds(delay1);
+
+  delayMicroseconds(20); //TBD_PADE Just to be suer for a while
 }
 
 bool HOT IRAM_ATTR ESPOneWire::read_bit() {
   InterruptLock lock;
-  // drive bus low
+
+  // Drive bus low
+  // First set bus low. This shall be at least 1 us, but since the ESP doesn't execute the pin commands very fast
+  // we take another approach and verifies that the bus is low
+
+  uint32_t start0 = micros();
   pin_.pin_mode(gpio::FLAG_OUTPUT);
 
-  // note: for reading we'll need very accurate timing, as the
-  // timing for the digital_read() is tight; according to the datasheet,
-  // we should read at the end of 16µs starting from the bus low
-  // typically, the ds18b20 pulls the line high after 11µs for a logical 1
-  // and 29µs for a logical 0
+  uint32_t start1 = micros();
+  uint32_t time_when_confirmed_low = 0;
+  do {
+    time_when_confirmed_low = micros();
+  } while (pin_.digital_read() &&  (time_when_confirmed_low - start1) <= 15 );
+  if ( time_when_confirmed_low - start1 > 15 ) {
+    ESP_LOGE(TAG, "read bit, bus not low within 15us. It tooked %lu us", time_when_confirmed_low - start1);
+  }
 
-  uint32_t start = micros();
-  // datasheet says >1µs
-  delayMicroseconds(3);
-
-  // release bus, delay E
+  // Then set the bus in tri-state. But only do this when the bus has been low for at least 1us (2us as the resolution is 1us on the timer)
+  while ( (micros() - time_when_confirmed_low) <= 2) {}
   pin_.pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
 
-  // Unfortunately some frameworks have different characteristics than others
-  // esp32 arduino appears to pull the bus low only after the digital_write(false),
-  // whereas on esp-idf it already happens during the pin_mode(OUTPUT)
-  // manually correct for this with these constants.
+  uint32_t time_when_confirmed_high = 0;
+  bool pin_state=false;
+  do {
+    time_when_confirmed_high = micros();
+    pin_state = pin_.digital_read();
+  } while (!pin_state &&  (time_when_confirmed_high - start1) <= 60 );
 
-#ifdef USE_ESP32
-  uint32_t timing_constant = 12;
-#else
-  uint32_t timing_constant = 14;
-#endif
+  // Finnish the time stop that must take at least 60 us
+  while ( micros() - time_when_confirmed_low <= 60 ) {}
 
-  // measure from start value directly, to get best accurate timing no matter
-  // how long pin_mode/delayMicroseconds took
-  while (micros() - start < timing_constant)
-    ;
-
-  // sample bus to read bit from peer
-  bool r = pin_.digital_read();
-
-  // read slot is at least 60µs; get as close to 60µs to spend less time with interrupts locked
-  uint32_t now = micros();
-  if (now - start < 60)
-    delayMicroseconds(60 - (now - start));
+  // If bus got high within 15 us then it's a 1, if not it's a 0
+  bool r =  time_when_confirmed_high <= time_when_confirmed_low+15;
 
   return r;
 }
