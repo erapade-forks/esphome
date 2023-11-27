@@ -92,7 +92,7 @@ bool HOT IRAM_ATTR ESPOneWire::reset() {
   }
 
   while(micros()-start1 <= 480){}
-          ESP_LOGW(TAG, "Test: start0, %lu, start1, %lu, start2, %lu, duration_for_pin_mode_tri_state, %lu, duration_untill_high, %lu, duration_untill_high2, %lu, duration_untill_device_pulls_low, %lu, duration_untill_device_releases_bus, %lu, micros, %lu", start0, start1, start2, duration_for_pin_mode_tri_state, duration_untill_high, duration_untill_high2, duration_untill_device_pulls_low, duration_untill_device_releases_bus, micros());
+          ESP_LOGVV(TAG, "Test: start0, %lu, start1, %lu, start2, %lu, duration_for_pin_mode_tri_state, %lu, duration_untill_high, %lu, duration_untill_high2, %lu, duration_untill_device_pulls_low, %lu, duration_untill_device_releases_bus, %lu, micros, %lu", start0, start1, start2, duration_for_pin_mode_tri_state, duration_untill_high, duration_untill_high2, duration_untill_device_pulls_low, duration_untill_device_releases_bus, micros());
 
   return sensor_present;
 }
