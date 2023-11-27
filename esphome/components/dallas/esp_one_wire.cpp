@@ -188,11 +188,12 @@ uint8_t IRAM_ATTR ESPOneWire::read8() {
   ESP_LOGVV(TAG, "read8: 0x%02x", ret); //TBD_PADE Remove this log
   return ret;
 }
+
 uint64_t IRAM_ATTR ESPOneWire::read64() {
   ESP_LOGVV(TAG, "read64"); //TBD_PADE Remove this log
   uint64_t ret = 0;
   for (uint8_t i = 0; i < 8; i++) {
-    ret |= (uint64_t(this->read_bit()) << i);
+    ret |= (uint64_t(this->read8()) << i * 8);
   }
   return ret;
 }
