@@ -99,26 +99,39 @@ bool HOT IRAM_ATTR ESPOneWire::reset() {
 
 void HOT IRAM_ATTR ESPOneWire::write_bit(bool bit) {
   InterruptLock lock;
-  // drive bus low
+
+  // Drive bus low
+  // First set bus low. This shall be at least 1 us, but since the ESP doesn't execute the pin commands very fast
+  // we take another approach and verifies that the bus is low
+
+  uint32_t start0 = micros();
   pin_.pin_mode(gpio::FLAG_OUTPUT);
 
-  // from datasheet:
-  // write 0 low time: t_low0: min=60µs, max=120µs
-  // write 1 low time: t_low1: min=1µs, max=15µs
-  // time slot: t_slot: min=60µs, max=120µs
-  // recovery time: t_rec: min=1µs
-  // ds18b20 appears to read the bus after roughly 14µs
-  uint32_t delay0 = bit ? 6 : 60;
-  uint32_t delay1 = bit ? 54 : 5;
+  uint32_t start1 = micros();
+  uint32_t time_when_confirmed_low = 0;
+  do {
+    time_when_confirmed_low = micros();
+  } while (pin_.digital_read() &&  (time_when_confirmed_low - start1) <= 15 );
+  if ( time_when_confirmed_low - start1 > 15 ) {
+    ESP_LOGE(TAG, "write bit, bus not low within 15us. It tooked %lu us", time_when_confirmed_low - start1);
+  }
 
-  // delay A/C
-  delayMicroseconds(delay0);
-  // release bus
-  pin_.pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP); 
-  // delay B/D
-  delayMicroseconds(delay1);
+  // Then wait at least 1us for a 1 and 60us for a 0 (2us and 62us as the resolution is 1us on the timer)
+  while ( (micros() - time_when_confirmed_low) <=  (bit ? 2 : 62)) {}
+  pin_.pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
+  
+    
+  // Then wait until the bus is confirmed high
+  uint32_t time_when_confirmed_high = 0;
+  do {
+    time_when_confirmed_high = micros();
+  } while (!pin_.digital_read() &&  (time_when_confirmed_high - time_when_confirmed_low) <= 120 );
+  if ( (time_when_confirmed_high - time_when_confirmed_low) > 120 ) {
+    ESP_LOGE(TAG, "write bit, bus not high within 60us. It tooked %lu us", time_when_confirmed_high - time_when_confirmed_low);
+  }
 
-  delayMicroseconds(20); //TBD_PADE Just to be suer for a while
+  // Finnish the time stop that must take at least 60 us
+  while ( micros() - time_when_confirmed_low <= 62 ) {}
 }
 
 bool HOT IRAM_ATTR ESPOneWire::read_bit() {
