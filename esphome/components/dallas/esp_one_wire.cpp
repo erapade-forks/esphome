@@ -127,7 +127,7 @@ void HOT IRAM_ATTR ESPOneWire::write_bit(bool bit) {
     time_when_confirmed_high = micros();
   } while (!pin_.digital_read() &&  (time_when_confirmed_high - time_when_confirmed_low) <= 120 );
   if ( (time_when_confirmed_high - time_when_confirmed_low) > 120 ) {
-    ESP_LOGE(TAG, "write bit, bus not high within 60us. It tooked %lu us", time_when_confirmed_high - time_when_confirmed_low);
+    ESP_LOGE(TAG, "write bit, bus not high within 120us. It tooked %lu us", time_when_confirmed_high - time_when_confirmed_low);
   }
 
   // Finnish the time stop that must take at least 60 us
