@@ -15,6 +15,14 @@ ESPOneWire::ESPOneWire(InternalGPIOPin *pin) {
 
 bool HOT IRAM_ATTR ESPOneWire::reset() {
 
+  uint32_t m_low_before=nanos();
+  uint32_t m_low_after;
+  uint32_t m_high_before;
+  uint32_t m_high_after;
+  uint32_t s_low_before;
+  uint32_t s_low_after;
+  uint32_t s_high_before;
+  uint32_t s_high_after;
   uint32_t start0_before_high;
   uint32_t start1;
   uint32_t start2;
@@ -36,43 +44,44 @@ bool HOT IRAM_ATTR ESPOneWire::reset() {
     // https://www.analog.com/media/en/technical-documentation/data-sheets/ds18b20.pdf
 
     // Send 480µs LOW TX reset pulse
+
     pin_.pin_mode(gpio::FLAG_OUTPUT);
     delayMicroseconds(480);
 
     // Release the bus
-    start0_before_high = micros();
+    start0_before_high = nanos();
     pin_.pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
 
     // Start timer to make sure the 480us client period is fulfilled
-    start1 = micros();
+    start1 = nanos();
 
-    duration_for_pin_mode_tri_state = micros()-start0_before_high;
+    duration_for_pin_mode_tri_state = nanos()-start0_before_high;
 
     
     // Wait for bus to be high
     do { 
-      duration_untill_high = micros()-start1;
+      duration_untill_high = nanos()-start1;
       bus_state = pin_.digital_read(); 
-    } while ( bus_state == false && duration_untill_high <= 15 );
-    duration_untill_high2 = micros()-start1;
+    } while ( bus_state == false && duration_untill_high <= 15e3 );
+    duration_untill_high2 = nanos()-start1;
 
     // Start time to make sure the client pulls the bus low within 240us
-    start2 = micros();
+    start2 = nanos();
 
     // If the bus wasn't detected as high after 15us something is wrong
-    if (duration_untill_high > 15) {
+    if (duration_untill_high > 15e3) {
       ESP_LOGE(TAG, "In the reset phase, the bus wasn't release to tri-state within the allowed 15us");
     }
     // Ok, bus has reached high state
     else {
       // Wait for bus to be low - Client presence detection
       do { 
-        duration_untill_device_pulls_low = micros()-start2;
+        duration_untill_device_pulls_low = nanos()-start2;
         bus_state = pin_.digital_read(); 
-      } while ( bus_state == true && duration_untill_device_pulls_low <= 240 );
+      } while ( bus_state == true && duration_untill_device_pulls_low <= 240e3 );
 
       // If precense puls detected, wait for client to release to tri-state
-      if (duration_untill_device_pulls_low > 240) {
+      if (duration_untill_device_pulls_low > 240e3) {
         ESP_LOGW(TAG, "In the reset phase, the sensor didn't pull the line low within the allowed 240us");
       }
       else {
@@ -81,20 +90,20 @@ bool HOT IRAM_ATTR ESPOneWire::reset() {
         
         // Then wait for sensor to release bus into Tri-state mode
         do { 
-          duration_untill_device_releases_bus = micros()-start1;
+          duration_untill_device_releases_bus = nanos()-start1;
           bus_state = pin_.digital_read(); 
-        } while ( bus_state == false && duration_untill_device_releases_bus <= 480 );
+        } while ( bus_state == false && duration_untill_device_releases_bus <= 480e3 );
 
         // If sensor didn't release the bus to tri-state within allowed time, write a warning
-        if (duration_untill_device_releases_bus > 480) {
+        if (duration_untill_device_releases_bus > 480e3) {
           ESP_LOGW(TAG, "In the reset phase, the sensor pulled the bus low in %lu us but didn't release the bus into tri-state within 480us", duration_untill_device_pulls_low);
         }
       }
     }
   }
 
-  while(micros()-start1 <= 480){}
-          ESP_LOGVV(TAG, "Test: start0_before_high, %lu, start1, %lu, start2, %lu, duration_for_pin_mode_tri_state, %lu, duration_untill_high, %lu, duration_untill_high2, %lu, duration_untill_device_pulls_low, %lu, duration_untill_device_releases_bus, %lu, micros, %lu", start0_before_high, start1, start2, duration_for_pin_mode_tri_state, duration_untill_high, duration_untill_high2, duration_untill_device_pulls_low, duration_untill_device_releases_bus, micros());
+  while(nanos()-start1 <= 480){}
+          ESP_LOGVV(TAG, "Test: start0_before_high, %lu, start1, %lu, start2, %lu, duration_for_pin_mode_tri_state, %lu, duration_untill_high, %lu, duration_untill_high2, %lu, duration_untill_device_pulls_low, %lu, duration_untill_device_releases_bus, %lu, nanos, %lu", start0_before_high, start1, start2, duration_for_pin_mode_tri_state, duration_untill_high, duration_untill_high2, duration_untill_device_pulls_low, duration_untill_device_releases_bus, nanos());
 
   return sensor_present;
 }
